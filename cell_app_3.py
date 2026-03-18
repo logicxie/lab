@@ -14,6 +14,45 @@ from datetime import datetime, timedelta
 # ==========================================
 st.set_page_config(page_title="实验室综合科研管理系统", page_icon="🔬", layout="wide")
 
+st.markdown("""
+<style>
+/* 移动端竖屏适配：防止日历变成单行竖排 */
+@media (max-width: 768px) {
+    /* 日历月份切换顶部保持横向 */
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) {
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"] {
+        min-width: 0 !important;
+    }
+    
+    /* 日历主体（星期及具体日期）：强制7列在一排不换行 */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
+        flex-wrap: nowrap !important;
+        gap: 2px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
+        width: 14.28% !important;
+        min-width: 14.28% !important;
+        flex: 1 1 14.28% !important;
+        padding: 0 1px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) .cal-weekday {
+        font-size: 0.8rem !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
+        padding: 0.1rem 0 !important;
+        min-height: 2.2rem !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p {
+        font-size: 0.75rem !important;
+        line-height: 1.1 !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 AREA_MAP = {
     "10cm 培养皿": 55.0, "6cm 培养皿": 21.0, "T75 培养瓶": 75.0,
     "T25 培养瓶": 25.0, "6孔板 (单孔)": 9.6, "12孔板 (单孔)": 3.8,
@@ -21,16 +60,6 @@ AREA_MAP = {
     "6孔板 (整板)": 9.6 * 6, "12孔板 (整板)": 3.8 * 12,
     "24孔板 (整板)": 1.9 * 24, "96孔板 (整板)": 0.32 * 96
 }
-
-DATA_FILE = "cell_data.json"
-SCHEDULE_FILE = "schedule_data.json"
-INVENTORY_FILE = "inventory_data.json"
-JOURNAL_FILE = "journal_data.json"
-MEMO_FILE = "memo_data.json"
-SOP_FILE = "sop_data.json"
-ANIMAL_FILE = "animal_data.json"
-BIOINFO_FILE = "bioinfo_data.json"
-RESULT_FILE = "result_data.json"
 
 # ==========================================
 # 1. 核心数学模型
@@ -46,24 +75,42 @@ def calculate_inverse_N0(Nt, t, r):
     Nt = min(Nt, 99.9)
     return K / (((K/Nt) - 1) * np.exp(r * t) + 1)
 
+import sqlite3
+
 # ==========================================
-# 2. 数据持久化与初始化 (增强容错)
+# 2. 数据库持久化与初始化 (SQLite引擎)
 # ==========================================
-def _load_json(file_name, default_val):
-    if os.path.exists(file_name):
+DB_FILE = "lab_system.db"
+
+def _get_db():
+    conn = sqlite3.connect(DB_FILE)
+    # 创建 key-value 数据表
+    conn.execute("CREATE TABLE IF NOT EXISTS store (key TEXT PRIMARY KEY, data TEXT)")
+    conn.commit()
+    return conn
+
+def _load_data(key, default_val):
+    conn = _get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT data FROM store WHERE key=?", (key,))
+    row = cur.fetchone()
+    conn.close()
+    if row:
         try:
-            with open(file_name, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return json.loads(row[0])
         except Exception:
             return default_val
     return default_val
 
-def _save_json(file_name, data):
-    with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def _save_data(key, data):
+    conn = _get_db()
+    # 存入数据库前将对象转为JSON字符串
+    conn.execute("INSERT OR REPLACE INTO store (key, data) VALUES (?, ?)", (key, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
 
 def load_cell_db():
-    db_dict = _load_json(DATA_FILE, {})
+    db_dict = _load_data("cell_db", {})
     if db_dict:
         for k, v in db_dict.items():
             v["data"] = pd.DataFrame(v["data"])
@@ -88,18 +135,45 @@ def save_cell_db():
             "r": v["r"],
             "pre_passage_records": v.get("pre_passage_records", pd.DataFrame()).to_dict(orient="records")
         }
-    _save_json(DATA_FILE, db_dict)
+    _save_data("cell_db", db_dict)
 
 # 初始化 Session State
 if 'cell_db' not in st.session_state: st.session_state.cell_db = load_cell_db()
-if 'schedule' not in st.session_state: st.session_state.schedule = _load_json(SCHEDULE_FILE, [])
-if 'inventory' not in st.session_state: st.session_state.inventory = _load_json(INVENTORY_FILE, [])
-if 'journal' not in st.session_state: st.session_state.journal = _load_json(JOURNAL_FILE, [])
-if 'memo' not in st.session_state: st.session_state.memo = _load_json(MEMO_FILE, [])
-if 'sops' not in st.session_state: st.session_state.sops = _load_json(SOP_FILE, [])
-if 'animals' not in st.session_state: st.session_state.animals = _load_json(ANIMAL_FILE, [])
-if 'bioinfo' not in st.session_state: st.session_state.bioinfo = _load_json(BIOINFO_FILE, [])
-if 'results' not in st.session_state: st.session_state.results = _load_json(RESULT_FILE, [])
+if 'schedule' not in st.session_state: st.session_state.schedule = _load_data("schedule", [])
+if 'inventory' not in st.session_state: st.session_state.inventory = _load_data("inventory", [])
+if 'journal' not in st.session_state: st.session_state.journal = _load_data("journal", [])
+if 'memo' not in st.session_state: st.session_state.memo = _load_data("memo", [])
+if 'sops' not in st.session_state: st.session_state.sops = _load_data("sops", [])
+if 'animals' not in st.session_state: st.session_state.animals = _load_data("animals", [])
+if 'bioinfo' not in st.session_state: st.session_state.bioinfo = _load_data("bioinfo", [])
+if 'results' not in st.session_state: st.session_state.results = _load_data("results", [])
+
+# ==========================================
+# 工具函数 (替代 _save_json)
+# ==========================================
+def _save_schedule():
+    _save_data("schedule", st.session_state.schedule)
+
+def _save_inventory():
+    _save_data("inventory", st.session_state.inventory)
+
+def _save_journal():
+    _save_data("journal", st.session_state.journal)
+
+def _save_memo():
+    _save_data("memo", st.session_state.memo)
+
+def _save_sops():
+    _save_data("sops", st.session_state.sops)
+
+def _save_animals():
+    _save_data("animals", st.session_state.animals)
+
+def _save_bioinfo():
+    _save_data("bioinfo", st.session_state.bioinfo)
+
+def _save_results():
+    _save_data("results", st.session_state.results)
 
 # ==========================================
 # 3. 共享 UI 组件 (日历引擎保持不变)
@@ -121,7 +195,7 @@ def interactive_calendar(calendar_type="all"):
             st.session_state[f"cal_current_month_{key_prefix}"] = current_month.replace(year=y, month=prev_m if prev_m > 0 else 12)
             st.rerun()
     with col_month:
-        st.markdown(f"<h4 style='text-align: center; margin:0;'>{current_month.strftime('%Y年 %m月')}</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 class='cal-month-header' style='text-align: center; margin:0;'>{current_month.strftime('%Y年 %m月')}</h4>", unsafe_allow_html=True)
     with col_next:
         if st.button("下个月 ▶", key=f"next_{key_prefix}", use_container_width=True):
             next_m = current_month.month + 1
@@ -141,7 +215,7 @@ def interactive_calendar(calendar_type="all"):
     weekdays = ["一", "二", "三", "四", "五", "六", "日"]
     cols = st.columns(7)
     for i, wd in enumerate(weekdays):
-        cols[i].markdown(f"**<div style='text-align:center;'>{wd}</div>**", unsafe_allow_html=True)
+        cols[i].markdown(f"**<div class='cal-weekday' style='text-align:center;'>{wd}</div>**", unsafe_allow_html=True)
         
     cal_m = calendar.Calendar(firstweekday=0)
     month_days = cal_m.monthdatescalendar(current_month.year, current_month.month)
@@ -233,7 +307,7 @@ def render_home():
                 if m_t:
                     dt_str = datetime.combine(selected_d, m_time).strftime("%Y-%m-%d %H:%M:%S")
                     st.session_state.memo.append({"id": str(uuid.uuid4()), "title": m_t, "time": dt_str, "content": m_c, "status": "pending"})
-                    _save_json(MEMO_FILE, st.session_state.memo)
+                    _save_memo()
                     st.toast("✅ 备忘录保存成功！")
                     st.rerun()
 
@@ -247,7 +321,7 @@ def render_home():
                 if j_t:
                     dt_str = datetime.combine(selected_d, j_time).strftime("%Y-%m-%d %H:%M:%S")
                     st.session_state.journal.append({"id": str(uuid.uuid4()), "title": j_t, "datetime": dt_str, "content": j_c, "status": "⏳ 待执行", "record": ""})
-                    _save_json(JOURNAL_FILE, st.session_state.journal)
+                    _save_journal()
                     st.toast("✅ 实验计划保存成功！")
                     st.rerun()
 
@@ -268,7 +342,7 @@ def render_animal():
                     "start_date": start_d.strftime("%Y-%m-%d"),
                     "treatment": treat, "status": "造模/观察中"
                 })
-                _save_json(ANIMAL_FILE, st.session_state.animals)
+                _save_animals()
                 st.toast("✅ 新队列已创建！")
                 st.rerun()
                 
@@ -283,7 +357,7 @@ def render_animal():
         )
         if st.button("💾 同步动物队列数据", type="primary"):
             st.session_state.animals = edited_ani.to_dict('records')
-            _save_json(ANIMAL_FILE, st.session_state.animals)
+            _save_animals()
             st.toast("✅ 动物队列状态已更新！")
     else:
         st.info("当前暂无动物队列记录。")
@@ -304,7 +378,7 @@ def render_bioinfo():
                     "server_path": b_path, "stage": b_stage,
                     "update_time": datetime.now().strftime("%Y-%m-%d")
                 })
-                _save_json(BIOINFO_FILE, st.session_state.bioinfo)
+                _save_bioinfo()
                 st.toast("✅ 生信记录已添加！")
                 st.rerun()
                 
@@ -319,7 +393,7 @@ def render_bioinfo():
         )
         if st.button("💾 保存路径与分析状态更新", type="primary"):
             st.session_state.bioinfo = edited_bio.to_dict('records')
-            _save_json(BIOINFO_FILE, st.session_state.bioinfo)
+            _save_bioinfo()
             st.toast("✅ 分析进度已同步落盘！")
     else:
         st.info("当前暂无生信项目流转。")
@@ -341,7 +415,7 @@ def render_sop_and_results():
                     st.session_state.sops.append({
                         "id": str(uuid.uuid4()), "category": s_cat, "title": s_title, "content": s_content
                     })
-                    _save_json(SOP_FILE, st.session_state.sops)
+                    _save_sops()
                     st.toast("✅ SOP入库成功！")
                     st.rerun()
         with c2:
@@ -356,7 +430,7 @@ def render_sop_and_results():
                         st.markdown(row['content'])
                         if st.button("🗑️ 删除此方法", key=f"del_sop_{row['id']}"):
                             st.session_state.sops = [s for s in st.session_state.sops if s['id'] != row['id']]
-                            _save_json(SOP_FILE, st.session_state.sops)
+                            _save_sops()
                             st.rerun()
             else:
                 st.info("知识库空空如也，快去记录你的第一个 Protocol 吧！")
@@ -372,7 +446,7 @@ def render_sop_and_results():
                         "id": str(uuid.uuid4()), "date": datetime.now().strftime("%Y-%m-%d"),
                         "title": r_title, "location": r_loc, "conclusion": r_conc
                     })
-                    _save_json(RESULT_FILE, st.session_state.results)
+                    _save_results()
                     st.toast("✅ 实验结果已永久归档！")
                     st.rerun()
                     
@@ -385,7 +459,7 @@ def render_sop_and_results():
                     st.write(r['conclusion'])
                     if st.button("🗑️ 删除记录", key=f"del_res_{r['id']}"):
                         st.session_state.results = [i for i in st.session_state.results if i['id'] != r['id']]
-                        _save_json(RESULT_FILE, st.session_state.results)
+                        _save_results()
                         st.rerun()
 
 def render_inventory():
@@ -416,7 +490,7 @@ def render_inventory():
             edited_df['id'] = edited_df['id'].apply(lambda x: str(uuid.uuid4()) if pd.isna(x) else x)
             
         st.session_state.inventory = edited_df.to_dict(orient="records")
-        _save_json(INVENTORY_FILE, st.session_state.inventory)
+        _save_inventory()
         st.toast("✅ 库存数据已同步落盘！")
 
 def render_journal():
@@ -438,7 +512,7 @@ def render_journal():
                     "datetime": datetime.combine(selected_d, exp_time).strftime("%Y-%m-%d %H:%M:%S"),
                     "content": exp_content, "status": "⏳ 待执行", "record": ""
                 })
-                _save_json(JOURNAL_FILE, st.session_state.journal)
+                _save_journal()
                 st.toast("✅ 实验计划已建立")
                 st.rerun()
 
@@ -458,12 +532,12 @@ def render_journal():
                 if c1.button("✅ 填写完毕并归档", key=f"btn_done_{exp['id']}", use_container_width=True):
                     exp["status"] = "✅ 已完成"
                     exp["record"] = exp_record if exp_record.strip() else "无额外实验记录。"
-                    _save_json(JOURNAL_FILE, st.session_state.journal)
+                    _save_journal()
                     st.toast("✅ 日志已归档！")
                     st.rerun()
                 if c2.button("🗑️ 取消计划", key=f"btn_del_{exp['id']}", use_container_width=True):
                     st.session_state.journal = [j for j in st.session_state.journal if j["id"] != exp["id"]]
-                    _save_json(JOURNAL_FILE, st.session_state.journal)
+                    _save_journal()
                     st.rerun()
 
     with tab_done:
@@ -477,14 +551,14 @@ def render_journal():
                 c1, c2 = st.columns(2)
                 if c1.button("🗑️ 彻底删除", key=f"btn_deldone_{exp['id']}", use_container_width=True):
                     st.session_state.journal = [j for j in st.session_state.journal if j["id"] != exp["id"]]
-                    _save_json(JOURNAL_FILE, st.session_state.journal)
+                    _save_journal()
                     st.rerun()
                 if c2.button("↩️ 退回未归档 (恢复待办)", key=f"btn_undone_{exp['id']}", use_container_width=True):
                     for j in st.session_state.journal:
                         if j["id"] == exp["id"]:
                             j["status"] = "⏳ 待执行"
                             break
-                    _save_json(JOURNAL_FILE, st.session_state.journal)
+                    _save_journal()
                     st.rerun()
 
 def render_memo():
@@ -505,7 +579,7 @@ def render_memo():
                     "id": str(uuid.uuid4()), "title": m_title, 
                     "time": datetime.combine(selected_d, m_time).strftime("%Y-%m-%d %H:%M:%S"), "content": m_content, "status": "pending"
                 })
-                _save_json(MEMO_FILE, st.session_state.memo)
+                _save_memo()
                 st.toast("✅ 备忘录已更新！")
                 st.rerun()
 
@@ -523,12 +597,12 @@ def render_memo():
                 with c2:
                     if st.button("✅ 完成", key=f"done_memo_{m['id']}", use_container_width=True):
                         m["status"] = "completed"
-                        _save_json(MEMO_FILE, st.session_state.memo)
+                        _save_memo()
                         st.rerun()
                 with c3:
                     if st.button("🗑️ 删除", key=f"del_memo_{m['id']}", use_container_width=True):
                         st.session_state.memo = [im for im in st.session_state.memo if im['id'] != m['id']]
-                        _save_json(MEMO_FILE, st.session_state.memo)
+                        _save_memo()
                         st.rerun()
 
     with tab_done_m:
@@ -543,12 +617,12 @@ def render_memo():
                 with c2:
                     if st.button("↩️ 退回待办", key=f"undone_memo_{m['id']}", use_container_width=True):
                         m["status"] = "pending"
-                        _save_json(MEMO_FILE, st.session_state.memo)
+                        _save_memo()
                         st.rerun()
                 with c3:
                     if st.button("🗑️ 删除", key=f"deldone_memo_{m['id']}", use_container_width=True):
                         st.session_state.memo = [im for im in st.session_state.memo if im['id'] != m['id']]
-                        _save_json(MEMO_FILE, st.session_state.memo)
+                        _save_memo()
                         st.rerun()
 
 def render_cell_kinetics():
@@ -633,7 +707,7 @@ def render_cell_kinetics():
                         "start_time": now.strftime("%Y-%m-%d %H:%M:%S"), "obs_time": obs_time.strftime("%Y-%m-%d %H:%M:%S"), 
                         "details": f"从 {plan['src_vessel']} 传代培养至 {plan['tgt_vessel']}。目标密度：{plan['tgt_density']}%。计算传代比例: {plan['passage_ratio']*100:.1f}%。"
                     })
-                    _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                    _save_schedule()
                     del st.session_state.proposed_plan
                     st.toast("🎉 已成功存入排期日程表！")
                     st.rerun()
@@ -717,7 +791,7 @@ def render_cell_kinetics():
                     st.success(s.get('record', '无额外日志。'))
                     if st.button("↩️ 退回未归档", key=f"unarch_sched_{s['id']}", use_container_width=True):
                         s['status'] = "⏳ 待执行"
-                        _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                        _save_schedule()
                         st.rerun()
                 else:
                     st.markdown(f"**⏰ {pd.to_datetime(s['obs_time']).strftime('%H:%M')} | [档案] {s['profile']}**")
@@ -729,16 +803,16 @@ def render_cell_kinetics():
                         s["status"] = "✅ 已完成"
                         s["record"] = log_text if log_text.strip() else "无额外日志。"
                         s["finish_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                        _save_schedule()
                         st.toast("✅ 排期记录已归档")
                         st.rerun()
                     if c2.button("🗑️ 删除排期", key=f"del_s_{s['id']}", use_container_width=True):
                         st.session_state.schedule = [si for si in st.session_state.schedule if si['id'] != s['id']]
-                        _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                        _save_schedule()
                         st.rerun()
                     if "batch_id" in s and c3.button("🗑️ 批量删同批次", key=f"del_batch_s_{s['id']}", use_container_width=True):
                         st.session_state.schedule = [si for si in st.session_state.schedule if si.get('batch_id') != s['batch_id']]
-                        _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                        _save_schedule()
                         st.rerun()
 
         st.divider()
@@ -774,7 +848,7 @@ def render_cell_kinetics():
                             st.session_state.schedule.append({"id": str(uuid.uuid4()), "batch_id": batch_id, "batch_name": plan_name, "profile": current_profile, "start_time": now_str, "obs_time": drug_dt.strftime("%Y-%m-%d %H:%M:%S"), "details": f"[{plan_name}] 💉 单次加药"})
                     
                     st.session_state.schedule.append({"id": str(uuid.uuid4()), "batch_id": batch_id, "batch_name": plan_name, "profile": current_profile, "start_time": now_str, "obs_time": h_dt.strftime("%Y-%m-%d %H:%M:%S"), "details": f"[{plan_name}] 🧬 检测收样完结。"})
-                    _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                    _save_schedule()
                     st.toast("✅ 批量长线规划安排完毕！")
                     st.rerun()
 
@@ -806,7 +880,7 @@ def render_cell_kinetics():
                         c1, c2 = st.columns(2)
                         if c1.button("🗑️ 删除此归档", key=f"del_arch_{log['id']}", use_container_width=True):
                             st.session_state.journal = [j for j in st.session_state.journal if j["id"] != log["id"]]
-                            _save_json(JOURNAL_FILE, st.session_state.journal)
+                            _save_journal()
                             st.rerun()
                         if c2.button("↩️ 退回未归档 (迁移至日程表)", key=f"unarch_{log['id']}", use_container_width=True):
                             st.session_state.schedule.append({
@@ -815,8 +889,8 @@ def render_cell_kinetics():
                                 "details": log["content"], "status": "⏳ 待执行"
                             })
                             st.session_state.journal = [j for j in st.session_state.journal if j["id"] != log["id"]]
-                            _save_json(JOURNAL_FILE, st.session_state.journal)
-                            _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                            _save_journal()
+                            _save_schedule()
                             st.rerun()
                 else:
                     s = item["data"]
@@ -828,14 +902,14 @@ def render_cell_kinetics():
                         c1, c2 = st.columns(2)
                         if c1.button("🗑️ 删除此归档", key=f"del_arch_s_{s['id']}", use_container_width=True):
                             st.session_state.schedule = [si for si in st.session_state.schedule if si["id"] != s["id"]]
-                            _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                            _save_schedule()
                             st.rerun()
                         if c2.button("↩️ 退回未归档 (待办)", key=f"unarch_s_{s['id']}", use_container_width=True):
                             for si in st.session_state.schedule:
                                 if si["id"] == s["id"]:
                                     si["status"] = "⏳ 待执行"
                                     break
-                            _save_json(SCHEDULE_FILE, st.session_state.schedule)
+                            _save_schedule()
                             st.rerun()
 
 # ==========================================
