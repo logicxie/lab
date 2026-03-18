@@ -12,76 +12,95 @@ from datetime import datetime, timedelta
 # 1. 设置页面适应手机屏幕，并默认收起侧边栏（如果有的话）
 st.set_page_config(page_title="细胞实验管理", layout="centered", initial_sidebar_state="collapsed")
 
-# 2. 注入 CSS 隐藏网页端多余的 UI 元素，并深度重写日历移动端布局
-# 2. 注入 CSS 隐藏网页端多余的 UI 元素，并使用高兼容性方案彻底修复手机日历
-# 2. 注入 CSS：保留侧边栏按钮，并用最底层、最暴力的逻辑锁死手机端日历排版
-# 2. 注入 CSS：保留侧边栏，全平台统一圆形日历，彻底拒绝手机端单列排版
 hide_streamlit_style = """
     <style>
-    /* 隐藏右上角菜单和底部水印（坚决保留 header，确保侧边栏正常使用！） */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}    
-
+    #MainMenu {visibility: hidden;} /* 隐藏右上角菜单 */
+    footer {visibility: hidden;}    /* 隐藏底部水印 */
+    header {visibility: hidden;}    /* 隐藏顶部的彩色装饰条 */
+    
     /* ========================================================
-       终极日历排版与全平台圆形图标修复
+       终极日历自适应补丁 (兼容新老版本 Streamlit, 强杀移动端换行)
        ======================================================== */
        
-    /* --- 1. 电脑与手机全局统一：日历图标强制为完美正圆形 --- */
-    /* 使用 first-of-type 绕过 Streamlit 随机注入的隐藏标签，精准锁定 7 列日历 */
-    div[data-testid="column"]:first-of-type:nth-last-of-type(7) button,
-    div[data-testid="column"]:first-of-type:nth-last-of-type(7) ~ div[data-testid="column"] button {
+    /* ----- 1. 强制 3列的月份导航头在移动端不换行 ----- */
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header),
+    div[data-testid="stColumns"]:has(.cal-month-header) {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div,
+    div[data-testid="stColumns"]:has(.cal-month-header) > div {
+        min-width: 0 !important; /* 解除宽度霸权 */
+    }
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div:nth-child(1),
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div:nth-child(3),
+    div[data-testid="stColumns"]:has(.cal-month-header) > div:nth-child(1),
+    div[data-testid="stColumns"]:has(.cal-month-header) > div:nth-child(3) {
+        flex: 1 1 25% !important;
+        width: 25% !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div:nth-child(2),
+    div[data-testid="stColumns"]:has(.cal-month-header) > div:nth-child(2) {
+        flex: 1 1 50% !important;
+        width: 50% !important;
+    }
+    .cal-month-header {
+        font-size: clamp(1rem, 4vw, 1.5rem) !important; 
+        white-space: nowrap !important;
+    }
+
+    /* ----- 2. 强制 7列的日历表头和日期主体在移动端绝对不换行 ----- */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)),
+    div[data-testid="stColumns"]:has(> div:nth-child(7)) {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 2px !important; 
+    }
+    
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div,
+    div[data-testid="stColumns"]:has(> div:nth-child(7)) > div {
+        min-width: 0 !important; 
+        flex: 1 1 calc(100% / 7) !important; 
+        width: calc(100% / 7) !important;
+        padding: 0 !important; 
+    }
+
+    /* ----- 3. 日期按钮：强制正圆形，完全自适应 ----- */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button,
+    div[data-testid="stColumns"]:has(> div:nth-child(7)) button {
         width: 100% !important;
-        aspect-ratio: 1 / 1 !important; /* 强制宽高比例 1:1 */
-        border-radius: 50% !important;  /* 强制物理裁切为圆 */
-        min-height: 0 !important;
+        aspect-ratio: 1 / 1 !important; /* 关键：确保宽高完全 1:1 */
+        min-height: 0 !important;       
+        height: auto !important;
+        border-radius: 50% !important;  
         padding: 0 !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
-        overflow: hidden !important;    /* 切掉内部的任何方形边角 */
-        margin: 0 auto !important;
+        box-sizing: border-box !important;
     }
 
-    /* 圆圈内部文字自适应缩放防挤压 */
-    div[data-testid="column"]:first-of-type:nth-last-of-type(7) button p,
-    div[data-testid="column"]:first-of-type:nth-last-of-type(7) ~ div[data-testid="column"] button p {
-        font-size: clamp(0.7rem, 2.5vw, 1.1rem) !important;
+    /* 调整圆圈内部文字大小，开启 pre-wrap 让标记图案正常换行 */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
+    div[data-testid="stColumns"]:has(> div:nth-child(7)) button p,
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button div,
+    div[data-testid="stColumns"]:has(> div:nth-child(7)) button div {
+        font-size: clamp(0.6rem, 2.2vw, 1.1rem) !important; 
         line-height: 1.1 !important;
         margin: 0 !important;
-        font-weight: 600 !important;
+        white-space: pre-wrap !important; 
+        text-align: center !important;
     }
-
+    
     /* 星期表头样式居中对齐 */
     .cal-weekday {
+        font-size: clamp(0.7rem, 3vw, 1rem) !important;
         text-align: center !important;
-        font-size: clamp(0.8rem, 3vw, 1rem) !important;
         padding-bottom: 5px !important;
-    }
-
-    /* --- 2. 手机端布局终极拦截：拒绝日历变成一列 --- */
-    @media screen and (max-width: 900px) {
-        /* 破解 Streamlit 官方的手机端强制垂直堆叠，改为横向排布+自动换行 */
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-        }
-
-        /* 默认让其他的列（如主页的3列、4列）占满 100% 宽度，保持其他界面正常的堆叠排版不乱 */
-        div[data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 100% !important;
-            min-width: 100% !important;
-        }
-
-        /* 🎯 重点打击：唯独遇到 7 列的日历时，强制缩减宽度为 14%，坚决不换行并排展示 */
-        div[data-testid="column"]:first-of-type:nth-last-of-type(7),
-        div[data-testid="column"]:first-of-type:nth-last-of-type(7) ~ div[data-testid="column"] {
-            width: 14.28% !important;
-            flex: 0 0 14.28% !important;
-            min-width: 0 !important;
-            padding: 1px !important;
-        }
     }
     </style>
 """
