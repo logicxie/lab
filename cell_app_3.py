@@ -29,55 +29,72 @@ st.set_page_config(page_title="实验室综合科研管理系统", page_icon="�
 
 st.markdown("""
 <style>
-/* 移动端全比例自适应缩放日历 */
-@media (max-width: 768px) {
-    /* ----- 1. 月份头：沾满宽度，均分不换行 ----- */
+/* 终极锁定日历移动端/窄屏自适应 (斩断 Streamlit 超窄屏换行阈值) */
+@media screen and (max-width: 900px) {
+    /* ----- 1. 月份导航头 (强行锁死比例，屏蔽默认边距) ----- */
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         width: 100% !important;
-        max-width: 100% !important;
         align-items: center !important;
+        gap: 0 !important;
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"] {
-        width: 33.3% !important;
-        min-width: 0 !important;
-        flex: 1 1 0px !important;
+        min-width: auto !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"]:nth-child(1),
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"]:nth-child(3) {
+        flex: 0 0 25% !important;
+        max-width: 25% !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"]:nth-child(2) {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
     }
     .cal-month-header {
-        font-size: 1.2rem !important;
+        font-size: 4.5vw !important;
         white-space: nowrap !important;
     }
 
-    /* ----- 2. 日历主体：包含7列的容器，强制横排并按百分比均分 ----- */
+    /* ----- 2. 日历主体矩阵 (强抛 Flex 均分，采用 VW 绝对宽度计算填满) ----- */
     div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         width: 100% !important;
-        max-width: 100% !important;
-        gap: 1% !important;
+        max-width: 100vw !important;
+        gap: 1vw !important; /* 6个间隙 x 1vw = 6vw */
+        padding-bottom: 2px !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) > div[data-testid="column"] {
-        width: 13.5% !important; 
-        min-width: 0 !important;
-        flex: 1 1 0px !important;
+        flex: 0 0 13vw !important; /* 7列 x 13vw = 91vw，(91+6=97vw，完美嵌入无折行) */
+        max-width: 13vw !important;
+        min-width: 13vw !important; 
+        width: 13vw !important;     
         padding: 0 !important;
-    }
-    
-    /* 星期头文字按比例缩放 */
-    .cal-weekday {
-        font-size: 3.5vw !important;
-        white-space: nowrap !important;
+        margin: 0 !important;
+        display: flex !important;
+        justify-content: center !important;
     }
 
-    /* ----- 3. 自适应完美圆形按钮 ----- */
+    /* 星期头部按屏幕比例绝对缩小 */
+    .cal-weekday {
+        font-size: 3.8vw !important;
+        white-space: nowrap !important;
+        line-height: 1 !important;
+        text-align: center !important;
+    }
+
+    /* ----- 3. 每日圆圈按钮 (由 VW 彻底控制绝对宽高) ----- */
     div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button {
-        width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 1 / 1 !important; /* 核心：基于宽度同比例缩放高度！ */
-        min-height: 0 !important;
+        width: 13vw !important;
+        height: 13vw !important; 
+        min-height: 13vw !important;
+        max-height: 13vw !important;
         padding: 0 !important;
         border-radius: 50% !important;
         display: flex !important;
@@ -87,11 +104,12 @@ st.markdown("""
         overflow: hidden !important;
     }
     
-    /* 文字根据屏幕比例缩小至按钮中心适配 */
+    /* 圆内字符与标记字号同样基于 VW 杜绝挤占 */
     div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button p {
-        font-size: 3.2vw !important;
-        line-height: 1.2 !important;
+        font-size: 3.5vw !important;
+        line-height: 1.1 !important;
         margin: 0 !important;
+        font-weight: 600 !important;
     }
 }
 </style>
