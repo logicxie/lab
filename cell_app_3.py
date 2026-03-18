@@ -75,39 +75,41 @@ def calculate_inverse_N0(Nt, t, r):
     Nt = min(Nt, 99.9)
     return K / (((K/Nt) - 1) * np.exp(r * t) + 1)
 
-import sqlite3
+from sqlalchemy import text
 
 # ==========================================
-# 2. 数据库持久化与初始化 (SQLite引擎)
+# 2. 数据库持久化与初始化 (Supabase PostgreSQL)
 # ==========================================
-DB_FILE = "lab_system.db"
 
-def _get_db():
-    conn = sqlite3.connect(DB_FILE)
-    # 创建 key-value 数据表
-    conn.execute("CREATE TABLE IF NOT EXISTS store (key TEXT PRIMARY KEY, data TEXT)")
-    conn.commit()
-    return conn
+conn = st.connection("supabase", type="sql")
+
+def _init_db():
+    with conn.session as s:
+        # 创建 key-value 数据表
+        s.execute(text("CREATE TABLE IF NOT EXISTS store (key TEXT PRIMARY KEY, data TEXT)"))
+        s.commit()
+    st.cache_data.clear()
+
+_init_db()
 
 def _load_data(key, default_val):
-    conn = _get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT data FROM store WHERE key=?", (key,))
-    row = cur.fetchone()
-    conn.close()
-    if row:
-        try:
-            return json.loads(row[0])
-        except Exception:
-            return default_val
+    try:
+        df_res = conn.query("SELECT data FROM store WHERE key = :key", params={"key": key}, ttl="10m")
+        if not df_res.empty:
+            return json.loads(df_res.iloc[0]["data"])
+    except Exception:
+        return default_val
     return default_val
 
 def _save_data(key, data):
-    conn = _get_db()
-    # 存入数据库前将对象转为JSON字符串
-    conn.execute("INSERT OR REPLACE INTO store (key, data) VALUES (?, ?)", (key, json.dumps(data, ensure_ascii=False)))
-    conn.commit()
-    conn.close()
+    with conn.session as s:
+        # 存入数据库前将对象转为JSON字符串, 使用 PG 的 ON CONFLICT DO UPDATE 实现 Upsert
+        s.execute(
+            text("INSERT INTO store (key, data) VALUES (:key, :data) ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data"),
+            {"key": key, "data": json.dumps(data, ensure_ascii=False)}
+        )
+        s.commit()
+    st.cache_data.clear()
 
 def load_cell_db():
     db_dict = _load_data("cell_db", {})
