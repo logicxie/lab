@@ -9,6 +9,19 @@ import uuid
 import calendar
 from datetime import datetime, timedelta
 
+# 1. 设置页面适应手机屏幕，并默认收起侧边栏（如果有的话）
+st.set_page_config(page_title="细胞实验管理", layout="centered", initial_sidebar_state="collapsed")
+
+# 2. 注入 CSS 隐藏网页端多余的 UI 元素
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;} /* 隐藏右上角菜单 */
+    footer {visibility: hidden;}    /* 隐藏底部水印 */
+    header {visibility: hidden;}    /* 隐藏顶部的彩色装饰条 */
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # ==========================================
 # 0. 页面配置与基础常量
 # ==========================================
@@ -22,21 +35,26 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) {
         flex-wrap: nowrap !important;
         align-items: center !important;
+        max-width: 320px !important;
+        margin: 0 auto !important;
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"] {
         min-width: 0 !important;
     }
     
-    /* 日历主体（星期及具体日期）：强制7列在一排不换行 */
+    /* 日历主体（星期及具体日期）：强制7列在一排不换行，且整体紧凑居中 */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
         flex-wrap: nowrap !important;
-        gap: 2px !important;
+        gap: 0 !important;
+        max-width: 320px !important; /* 核心：限制整行最大宽度从而大幅缩小列间距 */
+        margin: 0 auto !important;
+        justify-content: center !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
         width: 14.28% !important;
-        min-width: unset !important;
-        flex: 1 1 14.28% !important;
-        padding: 0 1px !important;
+        min-width: 0 !important;
+        flex: unset !important;
+        padding: 0 !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) .cal-weekday {
         font-size: 0.75rem !important;
@@ -44,18 +62,17 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
         padding: 0 !important;
         min-height: unset !important;
-        aspect-ratio: 1 / 1 !important;
+        width: 2.4rem !important;    /* 固定为精巧圆圈的宽度 */
+        height: 2.4rem !important;   /* 固定高度，保证绝对为圆形 */
         border-radius: 50% !important;
         margin: 2px auto !important;
-        width: 100% !important;
-        max-width: 3rem !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p {
-        font-size: 0.75rem !important;
+        font-size: 0.8rem !important;
         line-height: 1 !important;
         margin: 0 !important;
     }
