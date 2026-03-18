@@ -4,3 +4,5 @@ matplotlib
 numpy
 pandas 
 scipy
+SQLAlchemy
+psycopg2-binary
