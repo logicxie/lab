@@ -16,10 +16,13 @@ hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;} /* 隐藏右上角菜单 */
     footer {visibility: hidden;}    /* 隐藏底部水印 */
-    header {visibility: hidden;}    /* 隐藏顶部的彩色装饰条 */
+    
+    /* 【修复问题1】：不再隐藏整个 header，否则侧边栏按钮会消失。
+       如果你想隐藏右上角的“Deploy”等按钮，仅隐藏 action elements 即可 */
+    [data-testid="stHeaderActionElements"] {visibility: hidden;}
     
     /* ========================================================
-       终极日历自适应补丁 (兼容新老版本 Streamlit, 强杀移动端换行)
+       终极日历自适应补丁 (兼容新老版本 Streamlit)
        ======================================================== */
        
     /* ----- 1. 强制 3列的月份导航头在移动端不换行 ----- */
@@ -32,7 +35,7 @@ hide_streamlit_style = """
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div,
     div[data-testid="stColumns"]:has(.cal-month-header) > div {
-        min-width: 0 !important; /* 解除宽度霸权 */
+        min-width: 0 !important; 
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div:nth-child(1),
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div:nth-child(3),
@@ -66,13 +69,17 @@ hide_streamlit_style = """
         flex: 1 1 calc(100% / 7) !important; 
         width: calc(100% / 7) !important;
         padding: 0 !important; 
+        display: flex !important;
+        justify-content: center !important; /* 确保列内元素（按钮）居中 */
     }
 
-    /* ----- 3. 日期按钮：强制正圆形，完全自适应 ----- */
+    /* ----- 3. 日期按钮：强制正圆形，自适应，并限制电脑端最大尺寸 ----- */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button,
     div[data-testid="stColumns"]:has(> div:nth-child(7)) button {
         width: 100% !important;
-        aspect-ratio: 1 / 1 !important; /* 关键：确保宽高完全 1:1 */
+        max-width: 3.5rem !important;   /* 【修复问题2】：限制电脑端最大宽度 (约 56px) */
+        margin: 0 auto !important;      /* 确保缩小后在列中水平居中 */
+        aspect-ratio: 1 / 1 !important; /* 确保宽高完全 1:1 */
         min-height: 0 !important;       
         height: auto !important;
         border-radius: 50% !important;  
