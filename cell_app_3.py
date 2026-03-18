@@ -29,49 +29,46 @@ st.set_page_config(page_title="实验室综合科研管理系统", page_icon="�
 
 st.markdown("""
 <style>
-/* 移动端竖屏适配：防止日历变成单行竖排 */
+/* 移动端竖屏适配：彻底杜绝日历太宽的问题 */
 @media (max-width: 768px) {
-    /* 日历月份切换顶部保持横向 */
-    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) {
-        flex-wrap: nowrap !important;
-        align-items: center !important;
+    /* 为整个日历部分的容器增加一个唯一的钩子 */
+    div.mobile-calendar-container {
         max-width: 320px !important;
         margin: 0 auto !important;
     }
-    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"] {
+    
+    /* 强行缩窄所有包含 cal-month-header 和星期底部的默认列结构 */
+    div[data-testid="stHorizontalBlock"] {
+        gap: 0 !important;
+    }
+
+    div.mobile-calendar-container div[data-testid="column"] {
+        padding: 0 !important;
         min-width: 0 !important;
+        width: 14.28% !important;
+        flex: 1 1 0% !important; 
     }
     
-    /* 日历主体（星期及具体日期）：强制7列在一排不换行，且整体紧凑居中 */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-        flex-wrap: nowrap !important;
-        gap: 0 !important;
-        max-width: 320px !important; /* 核心：限制整行最大宽度从而大幅缩小列间距 */
-        margin: 0 auto !important;
-        justify-content: center !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
-        width: 14.28% !important;
-        min-width: 0 !important;
-        flex: unset !important;
-        padding: 0 !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) .cal-weekday {
+    div.mobile-calendar-container .cal-weekday {
         font-size: 0.75rem !important;
+        line-height: 1 !important;
     }
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
+    
+    div.mobile-calendar-container button {
         padding: 0 !important;
         min-height: unset !important;
-        width: 2.4rem !important;    /* 固定为精巧圆圈的宽度 */
-        height: 2.4rem !important;   /* 固定高度，保证绝对为圆形 */
+        width: 36px !important; 
+        height: 36px !important;
         border-radius: 50% !important;
         margin: 2px auto !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
+        overflow: hidden !important; 
     }
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p {
+    
+    div.mobile-calendar-container button p {
         font-size: 0.8rem !important;
         line-height: 1 !important;
         margin: 0 !important;
@@ -205,9 +202,12 @@ def _save_results():
     _save_data("results", st.session_state.results)
 
 # ==========================================
-# 3. 共享 UI 组件 (日历引擎保持不变)
+# 3. 共享 UI 组件 (日历引擎使用新版包裹器)
 # ==========================================
 def interactive_calendar(calendar_type="all"):
+    # 为了触发CSS限制宽度，把整个日历结构用自定的 div 套起来
+    st.markdown('<div class="mobile-calendar-container">', unsafe_allow_html=True)
+    
     key_prefix = calendar_type
     if f"cal_current_month_{key_prefix}" not in st.session_state:
         st.session_state[f"cal_current_month_{key_prefix}"] = datetime.now().date().replace(day=1)
@@ -269,6 +269,8 @@ def interactive_calendar(calendar_type="all"):
                 if st.button(label, key=f"btn_{key_prefix}_{day}", use_container_width=True, type="primary" if is_selected else "secondary"):
                     st.session_state.cal_selected_date = day
                     st.rerun()
+                    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 4. 各功能模块渲染函数
