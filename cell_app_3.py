@@ -12,108 +12,86 @@ from datetime import datetime, timedelta
 # 1. 设置页面适应手机屏幕，并默认收起侧边栏（如果有的话）
 st.set_page_config(page_title="细胞实验管理", layout="centered", initial_sidebar_state="collapsed")
 
-# 2. 注入 CSS 隐藏网页端多余的 UI 元素
+# 2. 注入 CSS 隐藏网页端多余的 UI 元素，并深度重写日历移动端布局
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;} /* 隐藏右上角菜单 */
     footer {visibility: hidden;}    /* 隐藏底部水印 */
     header {visibility: hidden;}    /* 隐藏顶部的彩色装饰条 */
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-# ==========================================
-# 0. 页面配置与基础常量
-# ==========================================
-st.set_page_config(page_title="实验室综合科研管理系统", page_icon="🔬", layout="wide")
-
-st.markdown("""
-<style>
-/* 终极锁定日历移动端/窄屏自适应 (斩断 Streamlit 超窄屏换行阈值) */
-@media screen and (max-width: 900px) {
-    /* ----- 1. 月份导航头 (强行锁死比例，屏蔽默认边距) ----- */
+    
+    /* ========================================================
+       终极日历自适应补丁 (斩断 Streamlit 手机端强制换行机制)
+       ======================================================== */
+       
+    /* ----- 1. 强制 3列的月份导航头在移动端不换行 ----- */
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        width: 100% !important;
         align-items: center !important;
-        gap: 0 !important;
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"] {
-        min-width: auto !important;
-        width: auto !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        min-width: 0 !important; /* 关键点：解除 Streamlit 默认的移动端 100% 宽度霸权 */
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"]:nth-child(1),
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"]:nth-child(3) {
-        flex: 0 0 25% !important;
-        max-width: 25% !important;
+        flex: 1 1 25% !important;
+        width: 25% !important;
     }
     div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"]:nth-child(2) {
-        flex: 0 0 50% !important;
-        max-width: 50% !important;
+        flex: 1 1 50% !important;
+        width: 50% !important;
     }
     .cal-month-header {
-        font-size: 4.5vw !important;
+        font-size: clamp(1rem, 4vw, 1.5rem) !important; /* 字体平滑缩放 */
         white-space: nowrap !important;
     }
 
-    /* ----- 2. 日历主体矩阵 (强抛 Flex 均分，采用 VW 绝对宽度计算填满) ----- */
+    /* ----- 2. 强制 7列的日历表头和日期主体在移动端不换行 ----- */
     div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        width: 100% !important;
-        max-width: 100vw !important;
-        gap: 1vw !important; /* 6个间隙 x 1vw = 6vw */
-        padding-bottom: 2px !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) > div[data-testid="column"] {
-        flex: 0 0 13vw !important; /* 7列 x 13vw = 91vw，(91+6=97vw，完美嵌入无折行) */
-        max-width: 13vw !important;
-        min-width: 13vw !important; 
-        width: 13vw !important;     
-        padding: 0 !important;
-        margin: 0 !important;
-        display: flex !important;
-        justify-content: center !important;
-    }
-
-    /* 星期头部按屏幕比例绝对缩小 */
-    .cal-weekday {
-        font-size: 3.8vw !important;
-        white-space: nowrap !important;
-        line-height: 1 !important;
-        text-align: center !important;
-    }
-
-    /* ----- 3. 每日圆圈按钮 (由 VW 彻底控制绝对宽高) ----- */
-    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button {
-        width: 13vw !important;
-        height: 13vw !important; 
-        min-height: 13vw !important;
-        max-height: 13vw !important;
-        padding: 0 !important;
-        border-radius: 50% !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        overflow: hidden !important;
+        gap: 2px !important; /* 强行缩减列间距，省出空间给圆形 */
     }
     
-    /* 圆内字符与标记字号同样基于 VW 杜绝挤占 */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) > div[data-testid="column"] {
+        min-width: 0 !important; /* 斩断默认的换行霸权 */
+        flex: 1 1 calc(100% / 7) !important; /* 严格平分 7 份 */
+        width: calc(100% / 7) !important;
+        padding: 0 !important; 
+    }
+
+    /* ----- 3. 日期按钮：强制正圆形，自适应宽度 ----- */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button {
+        width: 100% !important;
+        aspect-ratio: 1 / 1 !important; /* ✨魔法属性：宽高比严格 1:1，实现完美正圆 */
+        min-height: 0 !important;       /* 覆盖 Streamlit 默认的按钮最小高度限制 */
+        height: auto !important;
+        border-radius: 50% !important;  /* 强行切圆 */
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+
+    /* 调整圆圈内部文字大小，防止被挤出去 */
     div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button p {
-        font-size: 3.5vw !important;
+        font-size: clamp(0.6rem, 2.5vw, 1.1rem) !important; /* 动态适配字号 */
         line-height: 1.1 !important;
         margin: 0 !important;
-        font-weight: 600 !important;
     }
-}
-</style>
-""", unsafe_allow_html=True)
+    
+    /* 星期表头样式居中对齐 */
+    .cal-weekday {
+        font-size: clamp(0.7rem, 3vw, 1rem) !important;
+        text-align: center !important;
+        padding-bottom: 5px !important;
+    }
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 AREA_MAP = {
     "10cm 培养皿": 55.0, "6cm 培养皿": 21.0, "T75 培养瓶": 75.0,
