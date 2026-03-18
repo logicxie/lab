@@ -34,20 +34,30 @@ st.markdown("""
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
         width: 14.28% !important;
-        min-width: 14.28% !important;
+        min-width: unset !important;
         flex: 1 1 14.28% !important;
         padding: 0 1px !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) .cal-weekday {
-        font-size: 0.8rem !important;
+        font-size: 0.75rem !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-        padding: 0.1rem 0 !important;
-        min-height: 2.2rem !important;
+        padding: 0 !important;
+        min-height: unset !important;
+        aspect-ratio: 1 / 1 !important;
+        border-radius: 50% !important;
+        margin: 2px auto !important;
+        width: 100% !important;
+        max-width: 3rem !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p {
         font-size: 0.75rem !important;
-        line-height: 1.1 !important;
+        line-height: 1 !important;
+        margin: 0 !important;
     }
 }
 </style>
