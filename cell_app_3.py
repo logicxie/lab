@@ -29,46 +29,63 @@ st.set_page_config(page_title="实验室综合科研管理系统", page_icon="�
 
 st.markdown("""
 <style>
-/* 移动端竖屏适配：彻底杜绝日历太宽的问题 */
+/* 移动端竖屏适配：锁定日历列为横向防换行，独立精简手机端按钮 */
 @media (max-width: 768px) {
-    /* 为整个日历部分的容器增加一个唯一的钩子 */
-    div.mobile-calendar-container {
-        max-width: 320px !important;
+    /* ----- 1. 月份导航头 ----- */
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) {
+        flex-direction: row !important; 
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        max-width: 340px !important;
         margin: 0 auto !important;
     }
-    
-    /* 强行缩窄所有包含 cal-month-header 和星期底部的默认列结构 */
-    div[data-testid="stHorizontalBlock"] {
-        gap: 0 !important;
+    div[data-testid="stHorizontalBlock"]:has(.cal-month-header) > div[data-testid="column"] {
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 auto !important;
     }
 
-    div.mobile-calendar-container div[data-testid="column"] {
-        padding: 0 !important;
-        min-width: 0 !important;
+    /* ----- 2. 日历7列矩阵主体 (星期行及日历行) ----- */
+    /* 识别包含7个子列的 stHorizontalBlock，并斩断 Streamlit 默认的竖排换行 */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) {
+        flex-direction: row !important; 
+        flex-wrap: nowrap !important;
+        max-width: 320px !important;     /* 收缩日历整体宽度 */
+        margin: 0 auto !important;       /* 居中显示 */
+        gap: 0 !important;               /* 去除列间隙 */
+        justify-content: space-between !important;
+    }
+    
+    /* 强制每个单元格占据七分之一 */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) > div[data-testid="column"] {
         width: 14.28% !important;
-        flex: 1 1 0% !important; 
-    }
-    
-    div.mobile-calendar-container .cal-weekday {
-        font-size: 0.75rem !important;
-        line-height: 1 !important;
-    }
-    
-    div.mobile-calendar-container button {
+        min-width: 14.28% !important;
+        flex: unset !important;
         padding: 0 !important;
-        min-height: unset !important;
-        width: 36px !important; 
-        height: 36px !important;
-        border-radius: 50% !important;
-        margin: 2px auto !important;
+    }
+    
+    /* 星期头部文字 */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) .cal-weekday {
+        font-size: 0.75rem !important;
+    }
+
+    /* ----- 3. 手机端独享的精巧圆圈按钮 ----- */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button {
+        width: 36px !important;          /* 规定死正方形包裹 */
+        height: 36px !important;         
+        min-height: 36px !important;     /* 覆盖Streamlit自带拉长的高度的 */
+        padding: 0 !important;
+        border-radius: 50% !important;   /* 切正圆 */
+        margin: 2px auto !important;     /* 居中并给出微量行距 */
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        overflow: hidden !important; 
+        overflow: hidden !important;
     }
     
-    div.mobile-calendar-container button p {
+    /* 按钮内部文字精简合并 */
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7)) button p {
         font-size: 0.8rem !important;
         line-height: 1 !important;
         margin: 0 !important;
@@ -202,12 +219,9 @@ def _save_results():
     _save_data("results", st.session_state.results)
 
 # ==========================================
-# 3. 共享 UI 组件 (日历引擎使用新版包裹器)
+# 3. 共享 UI 组件 (日历引擎保持不变)
 # ==========================================
 def interactive_calendar(calendar_type="all"):
-    # 为了触发CSS限制宽度，把整个日历结构用自定的 div 套起来
-    st.markdown('<div class="mobile-calendar-container">', unsafe_allow_html=True)
-    
     key_prefix = calendar_type
     if f"cal_current_month_{key_prefix}" not in st.session_state:
         st.session_state[f"cal_current_month_{key_prefix}"] = datetime.now().date().replace(day=1)
@@ -269,8 +283,6 @@ def interactive_calendar(calendar_type="all"):
                 if st.button(label, key=f"btn_{key_prefix}_{day}", use_container_width=True, type="primary" if is_selected else "secondary"):
                     st.session_state.cal_selected_date = day
                     st.rerun()
-                    
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 4. 各功能模块渲染函数
