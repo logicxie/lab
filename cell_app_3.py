@@ -14,68 +14,77 @@ st.set_page_config(page_title="细胞实验管理", layout="centered", initial_s
 
 # 2. 注入 CSS 隐藏网页端多余的 UI 元素，并深度重写日历移动端布局
 # 2. 注入 CSS 隐藏网页端多余的 UI 元素，并使用高兼容性方案彻底修复手机日历
+# 2. 注入 CSS：保留侧边栏按钮，并用最底层、最暴力的逻辑锁死手机端日历排版
 hide_streamlit_style = """
     <style>
-    #MainMenu {visibility: hidden;} /* 隐藏右上角菜单 */
-    footer {visibility: hidden;}    /* 隐藏底部水印 */
-    header {visibility: hidden;}    /* 隐藏顶部的彩色装饰条 */
+    /* 隐藏右上角菜单和底部水印，【绝对不隐藏 header，否则手机端打不开侧边栏！】 */
+    #MainMenu {visibility: hidden;} 
+    footer {visibility: hidden;}    
     
     /* ========================================================
-       高兼容性日历修复 (放弃 :has，支持包括微信在内的所有手机浏览器)
-       核心逻辑：精准捕获网页中恰好为 7 列的结构（日历专属）
+       终极日历自适应与图形修复 (逻辑防弹版)
        ======================================================== */
        
-    @media screen and (max-width: 900px) {
-        /* 1. 强制 7 列网格平分宽度，斩断 Streamlit 的强行换行 */
-        div[data-testid="column"]:first-child:nth-last-child(7),
-        div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"] {
-            width: 14.285% !important;        /* 100% 除以 7 */
-            flex: 0 0 14.285% !important;
-            max-width: 14.285% !important;
-            min-width: 0 !important;          /* 覆盖默认的 100% 宽度 */
-            padding: 0 1px !important;        /* 极度压缩列间距，省出空间 */
-            display: flex !important;
-            justify-content: center !important;
-        }
-    }
-
-    /* 2. 强制这 7 列里面的按钮变成完美的圆形（电脑和手机端都生效） */
+    /* 电脑与全局：强制日历里的按钮为完美正圆形 */
     div[data-testid="column"]:first-child:nth-last-child(7) button,
     div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"] button {
-        width: 100% !important;
-        aspect-ratio: 1 / 1 !important;    /* 核心魔法：强制宽高比 1:1，无论屏幕多宽都保持正方形 */
-        height: auto !important;
-        min-height: 0 !important;
-        border-radius: 50% !important;     /* 把正方形切成完美的正圆 */
+        border-radius: 50% !important;
         padding: 0 !important;
-        margin: 0 auto !important;
         display: flex !important;
-        flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
         overflow: hidden !important;
+        aspect-ratio: 1 / 1 !important;
     }
 
-    /* 3. 日期数字和底部标记（圆点）的字号自适应屏幕大小 */
-    div[data-testid="column"]:first-child:nth-last-child(7) button p,
-    div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"] button p {
-        font-size: clamp(11px, 3.2vw, 15px) !important; /* 字号根据屏幕无级缩放，防爆裂 */
-        line-height: 1.1 !important;
-        margin: 0 !important;
-        font-weight: 600 !important;
-    }
-    
-    /* 4. 星期头部文字缩放并居中 */
-    .cal-weekday {
-        font-size: clamp(12px, 3.5vw, 16px) !important;
-        text-align: center !important;
-        padding-bottom: 4px !important;
-        white-space: nowrap !important;
+    @media screen and (max-width: 900px) {
+        /* 1. 破解官方强制垂直堆叠：把所有容器恢复为横排，但允许换行 */
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+        }
+        
+        /* 2. 伪装回官方逻辑：默认所有列占满 100% 宽度换行（保证你其他界面的排版不乱） */
+        div[data-testid="column"] {
+            width: 100% !important;
+            min-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+
+        /* 3. 🎯 核心截击：唯独遇到刚好 7 列的日历时，强行切分成 7 份挤在同一行 */
+        div[data-testid="column"]:first-child:nth-last-child(7),
+        div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"] {
+            width: 14.28% !important;
+            min-width: 0 !important;
+            flex: 0 0 14.28% !important;
+            padding: 1px !important;
+        }
+
+        /* 4. 彻底消灭方形：抛弃兼容性极差的 aspect-ratio，直接使用屏幕视窗绝对单位 (vw) 锁死宽高 */
+        div[data-testid="column"]:first-child:nth-last-child(7) button,
+        div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"] button {
+            width: 12.5vw !important;  /* 宽度根据手机屏幕宽度动态计算 */
+            height: 12.5vw !important; /* 高度强制与宽度一模一样，100%是正圆 */
+            min-height: 0 !important;
+        }
+
+        /* 调整圆圈内文字大小 */
+        div[data-testid="column"]:first-child:nth-last-child(7) button p,
+        div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"] button p {
+            font-size: 3.5vw !important; 
+            line-height: 1.1 !important;
+            margin: 0 !important;
+        }
+
+        /* 星期表头缩放 */
+        .cal-weekday { 
+            font-size: 3.8vw !important; 
+            text-align: center !important; 
+        }
     }
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
 
 AREA_MAP = {
     "10cm 培养皿": 55.0, "6cm 培养皿": 21.0, "T75 培养瓶": 75.0,
